@@ -29,7 +29,9 @@ module renaming #(
     //Alloc Out
     output logic [    INSTR_COUNT-1:0][$clog2((C_NUM-1)*K)-1:0] alloc_rob_id,
     output logic [    INSTR_COUNT-1:0][    $clog2(C_NUM*K)-1:0] alloc_rht_id,
-    output logic [    INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] alloc_p_reg
+    output logic [    INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] alloc_p_reg,
+
+    output logic [INSTR_COUNT-1:0] commit_o_dbg
 );
 
 localparam P_ADDR_WIDTH = $clog2(P_REGISTERS);
@@ -280,6 +282,7 @@ end
 
 // assign commit = rob_valid & rob_data_out_exec & 
                 // ~rec_en & ~rec_state;
+assign commit_o_dbg = commit;
 always_comb begin : InstrCommit
     for (int i = 0; i < INSTR_COUNT; i++) begin
         commit[i] = rob_valid[i] & rob_data_out_exec[i] & 

@@ -35,7 +35,7 @@ class RR_driver extends uvm_driver #(trans);
       vif.inst_en     <= 1;  
       @(posedge vif.clk);
 
-      while (vif.stall) begin 
+      while (vif.stall && !vif.rec_en) begin 
         @(posedge vif.clk);
       end
 

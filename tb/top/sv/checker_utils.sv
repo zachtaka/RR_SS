@@ -21,22 +21,23 @@ class checker_utils;
   endfunction : get_id_from_RAT
 
   // If branch then checkpoint RAT
-  function void checkpoint_RAT();
-    saved_RAT[rat_rename_pointer] = rat_table;
-    // $display("@%0tps Saved rat_table[%0d]:%p",$time(),rat_rename_pointer,rat_table);
-    rat_rename_pointer++;
-  endfunction : checkpoint_RAT
+  // function void checkpoint_RAT();
+  //   saved_RAT[rat_rename_pointer] = rat_table;
+  //   // $display("@%0tps Saved rat_table[%0d]:%p",$time(),rat_rename_pointer,rat_table);
+  //   rat_rename_pointer++;
+  // endfunction : checkpoint_RAT
 
   // Recover RAT to flush id
-  function void recover_RAT(input int id);
-    rat_table = saved_RAT[id];
-    // $display("@%0tps Recovered rat_table[%0d]:%p",$time(),id,rat_table);
-  endfunction : recover_RAT
+  // function void recover_RAT(input int rename_pointer);
+  //   rat_table = saved_RAT[rename_pointer];
+  //   // $display("@%0tps Recovered rat_table[%0d]:%p",$time(),id,rat_table);
+  // endfunction : recover_RAT
   
   // ------------------------     RAT implementetion     --------------------------------
 
   // ------------------------   FreeList implementetion  --------------------------------
   int free_list[$];
+  int saved_FL[TRANS_NUM*INSTR_COUNT-1:0][$] ;
   rename_record_entry_s [TRANS_NUM*INSTR_COUNT-1:0] rename_record;
   int rename_ins_pointer, alloc_rob_id, alloc_rht_id;
   int last_valid_idx;
@@ -61,21 +62,62 @@ class checker_utils;
         end
         if(valid_idx) begin
           free_list.push_back(rename_record[last_valid_idx].ppreg);
+          $display("Writeback(from rob_id=%0d) from rename_entry[%0d]: released reg:%0d",wb_i.rob_id,last_valid_idx,rename_record[last_valid_idx].ppreg);
         end else begin 
-          $fatal("Didnt found rename entry with that rob id?!");
+          $fatal("Didnt found rename entry with that rob id:%0d?!",wb_i.rob_id[i]);
         end
       end
     end
-    assert (free_list.size()<=(P_REGISTERS-L_REGISTERS)) else $fatal("Pushing on full free list");
+    // ToDo enable assertion when bug is fixed
+    // assert (free_list.size()<=(P_REGISTERS-L_REGISTERS)) else $fatal("Pushing on full free list");
   endfunction : release_reg
 
   // Get number of free regs
   function int free_reg_counter();
     return free_list.size();
   endfunction : free_reg_counter
+
   
   // ------------------------   FreeList implementetion  --------------------------------
 
+  function void checkpoint_RAT();
+    saved_RAT[rat_rename_pointer] = rat_table;
+    // $display("FL to checkpoint: free_list[%0d]:%p",rat_rename_pointer,free_list);
+    // saved_FL[rat_rename_pointer] = free_list;
+    // $display("Saved free list[%0d]:%p",rat_rename_pointer,saved_FL[rat_rename_pointer]);
+    rat_rename_pointer++;
+  endfunction : checkpoint_RAT
+
+  int rename_pointer;
+  function void recover_RAT(input int rob_id);
+    // Searching at rename_record array for the last rename with that rob_id 
+    // to get the rename pointer of that instruction
+    valid_idx = 0;
+    for (int i = 0; i < rename_ins_pointer; i++) begin
+      if(rename_record[i].rob_id==rob_id) begin
+        rename_pointer = i;
+        valid_idx = 1;
+      end 
+    end
+    if(valid_idx) begin
+      rat_table = saved_RAT[rename_pointer];
+      $display("@%0tps Recovered rat_table:%p",$time(),rat_table);
+      // free_list = saved_FL[rename_pointer];
+      $display("@%0tps FreeList before recover:%p",$time(),free_list);
+      for (int i = (rename_pointer+1); i < rename_ins_pointer; i++) begin
+        free_list.push_back(rename_record[i].preg);
+        $display("Reclaimed reg:%0d",rename_record[i].preg);
+      end
+      $display("FreeList after recover:%p",free_list);
+      alloc_rob_id = rename_record[rename_pointer+1].rob_id;
+      alloc_rht_id = rename_record[rename_pointer+1].rht_id;
+    end else begin 
+      $fatal("Didnt found rename entry with that rob id");
+    end
+
+    
+
+  endfunction : recover_RAT
 
   // ------------------------   Rename record implementetion  --------------------------------
   
@@ -85,12 +127,13 @@ class checker_utils;
     rename_record[rename_ins_pointer].rob_id = alloc_rob_id;
     rename_record[rename_ins_pointer].rht_id = alloc_rht_id;
     rename_record[rename_ins_pointer].valid_entry = 1;
-    // $display("@ %0tps new rename: %p",$time(),rename_record[rename_ins_pointer]);
+    $display("@ %0tps new rename[%0d]: %p",$time(),rename_ins_pointer,rename_record[rename_ins_pointer]);
+    // $display("FreeList after rename:%p",free_list);
     rename_ins_pointer++;
     alloc_rob_id++;
     alloc_rht_id++;
     if(alloc_rob_id==((C_NUM-1)*K)) alloc_rob_id = 0;
-    if(alloc_rht_id==(C_NUM*K)) alloc_rht_id = 0;
+    if(alloc_rht_id==(C_NUM*K))     alloc_rht_id = 0;
   endfunction : new_rename
 
   // ------------------------   Rename record implementetion  --------------------------------

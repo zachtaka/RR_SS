@@ -79,7 +79,7 @@ function void RR_agent::connect_phase(uvm_phase phase);
     `uvm_warning(get_type_name(), "RR virtual interface is not set!")
 
   m_monitor.vif = m_config.vif;
-  m_monitor.analysis_port.connect(analysis_port);
+  // m_monitor.analysis_port.connect(analysis_port);
 
   if (get_is_active() == UVM_ACTIVE)
   begin

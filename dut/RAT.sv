@@ -54,16 +54,16 @@ module RAT #(
         end
     end
 
-    // assign therm_instr_check = (instr_to_checkpoint << 1) -1;
-    // assign therm_instr_check = instr_to_checkpoint -1;
-    // assign masked_wr_en      = therm_instr_check & write_en;
+    assign therm_instr_check = (instr_to_checkpoint) -1;
+    //assign therm_instr_check = instr_to_checkpoint -1;
+    assign masked_wr_en      = therm_instr_check & write_en;
     //Checkpoint Storing
     always_ff @(posedge clk) begin : StoreCheckpoints
         if(take_checkpoint) begin
             CheckpointedRAT[head] <= CurrentRAT;
-            // for (int i = 0; i < INSTR_COUNT; i++) begin
-            //     if (masked_wr_en[i]) CheckpointedRAT[head][write_addr] <= write_data;
-            // end
+            for (int i = 0; i < INSTR_COUNT; i++) begin
+                if (masked_wr_en[i]) CheckpointedRAT[head][write_addr[i]] <= write_data[i];
+            end
         end
     end
     

@@ -8,7 +8,7 @@ vlog -sv ../tb/RR/sv/util_pkg.sv
 
 
 #compile the dut code
-set cmd "vlog -F ../dut/files.f"
+set cmd "vlog -F ../dut/files.f +cover"
 eval $cmd
 
 set tb_name top
@@ -39,10 +39,10 @@ set cmd  "vlog -sv -timescale 1ns/1ps +incdir+../tb/include +incdir+../tb/"
 append cmd $tb_name "_tb/sv ../tb/" $tb_name "_tb/sv/" $tb_name "_tb.sv"
 eval $cmd
 
-vsim top_tb -novopt +UVM_TESTNAME=top_test  -voptargs=+acc -solvefaildebug -uvmcontrol=all -classdebug -onfinish "stop"
+vsim top_tb -novopt +UVM_TESTNAME=top_test  -voptargs=+acc -solvefaildebug -uvmcontrol=all -classdebug -onfinish "stop" -assertcover -coverage +cover=bcfst
 run 0
-log -r *
+log -r /*
 do wave.do
 onbreak {wave zoom full}
-run 5500ns
+run -all
 wave zoom full

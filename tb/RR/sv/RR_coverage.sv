@@ -1,87 +1,76 @@
-// You can insert code here by setting file_header_inc in file common.tpl
-
-//=============================================================================
-// Project  : generated_tb
-//
-// File Name: RR_coverage.sv
-//
-//
-// Version:   1.0
-//
-// Code created by Easier UVM Code Generator version 2016-08-11 on Sun Jun 17 14:13:58 2018
-//=============================================================================
-// Description: Coverage for agent RR
-//=============================================================================
-
 `ifndef RR_COVERAGE_SV
 `define RR_COVERAGE_SV
 
-// You can insert code here by setting agent_cover_inc_before_class in file renaming.tpl
+import util_pkg::*;
 
-class RR_coverage extends uvm_subscriber #(trans);
+// 1) When declaring array of covergroup, covergroup  should be outside of coverage classs.
+// from LRM: One cannot declare an array of an embedded covergroup inside class because the covergroup
+// declared inside a class is an anonymous type and the covergroup name becomes the instance variable.
+// 2) One need to use ref argument to access variable declared inside coverage class.
+covergroup cg_port(string name_ , int port_num, ref monitor_trans m_item);
+  option.per_instance = 1;
+  option.name = name_;     // gives different name to each instance
+  type_option.comment = "This instance covers only one Instruction port";
+  coverpoint m_item.l_dst[port_num] 
+  {
+    bins cover_input_ldst_[] = {[L_REGISTERS:1]};
+    illegal_bins cover_ldst_range_outofrange = default;
+  }
+endgroup
 
+covergroup cg_common(ref int common_ldests, ref monitor_trans m_item);
+  option.per_instance = 1;
+
+  // How many ldest are equal in the same Ins packet
+  ldest_depence_num : coverpoint common_ldests {
+    bins common_ldest_num[] = {[INSTR_COUNT:0]};
+  }
+
+  // Cover flush id
+  cp_flush_id: coverpoint m_item.rec_rob_id[0] iff(m_item.rec_en) {
+    bins flush_to_rob_id[] = {[(C_NUM-1)*K-1:0]};
+    illegal_bins misc_rob_id = default;
+  }
+
+endgroup : cg_common
+
+
+
+class RR_coverage extends uvm_subscriber #(monitor_trans);
   `uvm_component_utils(RR_coverage)
 
-  RR_config m_config;    
-  bit       m_is_covered;
-  trans     m_item;
-     
-  // You can replace covergroup m_cov by setting agent_cover_inc in file renaming.tpl
-  // or remove covergroup m_cov by setting agent_cover_generate_methods_inside_class = no in file renaming.tpl
+  monitor_trans     m_item;
+  int common_ldests;
+  
 
-  covergroup m_cov;
-    option.per_instance = 1;
-    // You may insert additional coverpoints here ...
+  cg_port cg_port[INSTR_COUNT-1:0];
+  cg_common cg_common;
 
-  endgroup
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+    foreach (cg_port[i]) cg_port[i] = new($sformatf("cg_port_%0d",i),i,m_item);
+    cg_common = new(common_ldests,m_item);
+  endfunction : new
 
-  // You can remove new, write, and report_phase by setting agent_cover_generate_methods_inside_class = no in file renaming.tpl
 
-  extern function new(string name, uvm_component parent);
-  extern function void write(input trans t);
-  extern function void build_phase(uvm_phase phase);
-  extern function void report_phase(uvm_phase phase);
+  function void write(input monitor_trans t);
+    m_item = t;
+    for (int i = 0; i < INSTR_COUNT; i++) begin
+      cg_port[i].sample();
+    end
 
-  // You can insert code here by setting agent_cover_inc_inside_class in file renaming.tpl
+    common_ldests = 0;
+    for (int i = 0; i < (INSTR_COUNT-1) ; i++) begin
+      if (m_item.l_dst[i] == m_item.l_dst[INSTR_COUNT-1]) begin 
+        common_ldests++;
+      end
+    end
+    cg_common.sample();
+
+  endfunction : write
+
 
 endclass : RR_coverage 
 
-
-// You can remove new, write, and report_phase by setting agent_cover_generate_methods_after_class = no in file renaming.tpl
-
-function RR_coverage::new(string name, uvm_component parent);
-  super.new(name, parent);
-  m_is_covered = 0;
-  m_cov = new();
-endfunction : new
-
-
-function void RR_coverage::write(input trans t);
-  m_item = t;
-  if (m_config.coverage_enable)
-  begin
-    m_cov.sample();
-    // Check coverage - could use m_cov.option.goal instead of 100 if your simulator supports it
-    if (m_cov.get_inst_coverage() >= 100) m_is_covered = 1;
-  end
-endfunction : write
-
-
-function void RR_coverage::build_phase(uvm_phase phase);
-  if (!uvm_config_db #(RR_config)::get(this, "", "config", m_config))
-    `uvm_error(get_type_name(), "RR config not found")
-endfunction : build_phase
-
-
-function void RR_coverage::report_phase(uvm_phase phase);
-  if (m_config.coverage_enable)
-    `uvm_info(get_type_name(), $sformatf("Coverage score = %3.1f%%", m_cov.get_inst_coverage()), UVM_MEDIUM)
-  else
-    `uvm_info(get_type_name(), "Coverage disabled for this agent", UVM_MEDIUM)
-endfunction : report_phase
-
-
-// You can insert code here by setting agent_cover_inc_after_class in file renaming.tpl
-
-`endif // RR_COVERAGE_SV
+`endif 
 

@@ -36,6 +36,7 @@ class Checker extends uvm_subscriber #(trans);
   bit [INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] dest_o_GR;
   result_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] GR_array;
   rename_record_entry_s rename_entry;
+  flush_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] flush_array;
   task RR_Golden_Ref();
     forever begin 
       if(trans_q.size()>0) begin
@@ -44,35 +45,46 @@ class Checker extends uvm_subscriber #(trans);
         /*--------------------------------------------------------------------- 
               Instruction rename golden ref
         ----------------------------------------------------------------------*/
-        // Instruction dest rename calculation
-        for (int ins_i = 0; ins_i < INSTR_COUNT; ins_i++) begin
-          while(utils.free_reg_counter()==0) begin 
-            @(negedge vif.clk);
+        wait(flush_array[trans_pointer].valid_entry);
+        if(flush_array[trans_pointer].renamed) begin
+          // Instruction dest rename calculation
+          for (int ins_i = 0; ins_i < INSTR_COUNT; ins_i++) begin
+            while(utils.free_reg_counter()==0) begin 
+              @(negedge vif.clk);
+            end
+            dest_o_GR[ins_i] = utils.get_free_reg();
           end
-          dest_o_GR[ins_i] = utils.get_free_reg();
+          
+          for (int i = 0; i < INSTR_COUNT; i++) begin
+            // Save results to Golden Reference array
+            GR_array[trans_pointer].dest[i] = dest_o_GR[i];
+            GR_array[trans_pointer].rob_id[i]  = utils.alloc_rob_id; // ToDo Fix it
+            GR_array[trans_pointer].rht_id[i]  = utils.alloc_rht_id; // ToDo Fix it
+            GR_array[trans_pointer].valid_entry = 1;
+
+            // Update checker components
+            // Keep track of renames and rob, rht id
+            rename_entry.lreg = m_trans.dest[i];
+            rename_entry.preg = dest_o_GR[i];
+            rename_entry.ppreg = utils.get_id_from_RAT(m_trans.dest[i]);
+            utils.new_rename(rename_entry);
+            // Update RAT table with new dest renames
+            utils.update_RAT(.id(m_trans.dest[i]), .new_id(dest_o_GR[i]));
+            // For each rename checkpoint RAT
+            utils.checkpoint_RAT();
+          end
+          $display("@ %0tps dest_o_0=%0d dest_o_1=%0d",$time(),dest_o_GR[0],dest_o_GR[1]);
         end
-        
-        for (int i = 0; i < INSTR_COUNT; i++) begin
-          // Save results to Golden Reference array
-          GR_array[trans_pointer].dest[i] = dest_o_GR[i];
-          GR_array[trans_pointer].rob_id[i]  = utils.alloc_rob_id; // ToDo Fix it
-          GR_array[trans_pointer].rht_id[i]  = utils.alloc_rht_id; // ToDo Fix it
-          GR_array[trans_pointer].valid_entry = 1;
 
-          // Update checker components
-          // Keep track of renames and rob, rht id
-          rename_entry.lreg = m_trans.dest[i];
-          rename_entry.preg = dest_o_GR[i];
-          rename_entry.ppreg = utils.get_id_from_RAT(m_trans.dest[i]);
-          utils.new_rename(rename_entry);
-          // Update RAT table with new dest renames
-          utils.update_RAT(.id(m_trans.dest[i]), .new_id(dest_o_GR[i]));
-          // For each rename checkpoint RAT
-          utils.checkpoint_RAT();
+        // First, recover RAT
+        if(flush_array[trans_pointer].flushed) begin
+          // $display("Flushed trans: %0d",trans_pointer);
+          utils.recover_RAT(flush_array[trans_pointer].flush_to_rob_id);
         end
+        // Second, reverse all renames after flush to recover FreeList
 
 
-        // $display("@ %0tps dest_o_0=%0d dest_o_1=%0d",$time(),dest_o_GR[0],dest_o_GR[1]);
+
 
         trans_pointer++;
       end // if (queue.size>0)
@@ -88,7 +100,7 @@ class Checker extends uvm_subscriber #(trans);
   result_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] DUT_array;
   task monitor_DUT_out();
     forever begin 
-      if(vif.l_dst_valid && !vif.stall) begin
+      if(vif.l_dst_valid && (!vif.stall || vif.rec_en)) begin
         for (int i = 0; i < INSTR_COUNT; i++) begin
           DUT_array[trans_pointer_2].dest[i] = vif.alloc_p_reg[i];
           DUT_array[trans_pointer_2].rob_id[i] = vif.alloc_rob_id[i];
@@ -96,6 +108,12 @@ class Checker extends uvm_subscriber #(trans);
           DUT_array[trans_pointer_2].sim_time  = $time();
           DUT_array[trans_pointer_2].valid_entry = 1;
         end
+
+        flush_array[trans_pointer_2].flushed = vif.rec_en;
+        flush_array[trans_pointer_2].renamed = ~vif.stall;
+        flush_array[trans_pointer_2].flush_to_rob_id = vif.rec_rob_id[0];
+        flush_array[trans_pointer_2].valid_entry = 1;
+        // $display("flush_array[%0d]=%p",trans_pointer_2,flush_array[trans_pointer_2]);
         trans_pointer_2++;
       end
       @(negedge vif.clk);
@@ -123,31 +141,32 @@ class Checker extends uvm_subscriber #(trans);
   function void report_phase(uvm_phase phase);
     // Compare results
     for (int trans_i = 0; trans_i < trans_pointer; trans_i++) begin
+      // skip checking for flushed transactions
+      if(!flush_array[trans_i].flushed) begin
+        // Check renamed instructions
+        for (int i = 0; i < INSTR_COUNT; i++) begin
+          if(GR_array[trans_i].dest[i] != DUT_array[trans_i].dest[i]) begin
+            `uvm_error(get_type_name(),$sformatf("[ERROR] @ %0tps Expected GR_array[%0d].dest[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].dest[i], DUT_array[trans_i].dest[i] ))
+            wrong_dests++;
+          end else begin 
+            correct_dests++;
+          end
 
-      // Check renamed instructions
-      for (int i = 0; i < INSTR_COUNT; i++) begin
-        if(GR_array[trans_i].dest[i] != DUT_array[trans_i].dest[i]) begin
-          `uvm_error(get_type_name(),$sformatf("[ERROR] @%0tps Expected GR_array[%0d].dest[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].dest[i], DUT_array[trans_i].dest[i] ))
-          wrong_dests++;
-        end else begin 
-          correct_dests++;
+          if(GR_array[trans_i].rob_id[i] != DUT_array[trans_i].rob_id[i]) begin
+            `uvm_error(get_type_name(),$sformatf("[ERROR] @ %0tps Expected GR_array[%0d].rob_id[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].rob_id[i], DUT_array[trans_i].rob_id[i] ))
+            wrong_rob_id++;
+          end else begin 
+            correct_rob_id++;
+          end
+
+
+          if(GR_array[trans_i].rht_id[i] != DUT_array[trans_i].rht_id[i]) begin
+            `uvm_error(get_type_name(),$sformatf("[ERROR] @ %0tps Expected GR_array[%0d].rht_id[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].rht_id[i], DUT_array[trans_i].rht_id[i] ))
+            wrong_rht_id++;
+          end else begin 
+            correct_rht_id++;
+          end
         end
-
-        if(GR_array[trans_i].rob_id[i] != DUT_array[trans_i].rob_id[i]) begin
-          `uvm_error(get_type_name(),$sformatf("[ERROR] @%0tps Expected GR_array[%0d].rob_id[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].rob_id[i], DUT_array[trans_i].rob_id[i] ))
-          wrong_rob_id++;
-        end else begin 
-          correct_rob_id++;
-        end
-
-
-        if(GR_array[trans_i].rht_id[i] != DUT_array[trans_i].rht_id[i]) begin
-          `uvm_error(get_type_name(),$sformatf("[ERROR] @%0tps Expected GR_array[%0d].rht_id[%0d] = %p,\t but found %p",DUT_array[trans_i].sim_time,trans_i,i,GR_array[trans_i].rht_id[i], DUT_array[trans_i].rht_id[i] ))
-          wrong_rht_id++;
-        end else begin 
-          correct_rht_id++;
-        end
-
       end
       checked_trans++;
     end
