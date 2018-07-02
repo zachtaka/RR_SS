@@ -9,7 +9,9 @@ class RR_monitor extends uvm_monitor;
 
   uvm_analysis_port #(monitor_trans) analysis_port;
   uvm_analysis_port #(writeback_s) wb_port;
+  uvm_analysis_port #(commit_s) commit_port;
   writeback_s wb_trans;
+  commit_s commit_trans;
   monitor_trans m_trans;
 
 
@@ -17,6 +19,7 @@ class RR_monitor extends uvm_monitor;
 	  super.new(name, parent);
 	  analysis_port = new("analysis_port", this);
 	  wb_port = new("wb_port", this);
+    commit_port = new("commit_port", this);
 	endfunction : new
 
   task run_phase(uvm_phase phase);
@@ -25,6 +28,9 @@ class RR_monitor extends uvm_monitor;
       wb_trans.wb_en  = vif.wb_en;
       wb_trans.rob_id = vif.rec_rob_id;
       wb_port.write(wb_trans);
+
+      commit_trans.valid_commit = vif.commit_o_dbg;
+      commit_port.write(commit_trans);
 
       m_trans.l_dst        = vif.l_dst;        
       m_trans.l_dst_valid  = vif.l_dst_valid;  

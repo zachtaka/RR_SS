@@ -21,6 +21,8 @@ class RR_driver_wb_fl extends uvm_component;
     vif.wb_en <= 0;
   endtask : reset
   bit bp_flush = 0;
+  int last_rec_rob_id;
+  int rob_id_count = 0;
   task run_phase(uvm_phase phase);
 
     reset();
@@ -40,15 +42,18 @@ class RR_driver_wb_fl extends uvm_component;
 
       uncommited_Ins = Ins_commit_pointer - Ins_retire_pointer;
       if((!vif.rec_busy && !vif.rec_en) && (uncommited_Ins>0)) begin
-        if($urandom_range(0,99)<FLUSH_RATE) begin
+        if(($urandom_range(0,99)<FLUSH_RATE)) begin
           // Flush to Ins_retire_pointer
-          vif.rec_rob_id[0] <= Ins_array[Ins_retire_pointer].rob_id;
-          vif.rec_rht_id <= Ins_array[Ins_retire_pointer].rht_id;
-          vif.rec_en <= 1;
-          vif.wb_en  <= 0;
-          
-          for (int i = (Ins_retire_pointer+1); i < Ins_commit_pointer; i++) begin
-            Ins_array[i].flushed = 1;
+          // dont recover to the same rob id two consecutive times
+          if(last_rec_rob_id!=Ins_array[Ins_retire_pointer].rob_id) begin
+            vif.rec_rob_id[0] <= Ins_array[Ins_retire_pointer].rob_id;
+            vif.rec_rht_id <= Ins_array[Ins_retire_pointer].rht_id;
+            vif.rec_en <= 1;
+            vif.wb_en  <= 0;
+            last_rec_rob_id = Ins_array[Ins_retire_pointer].rob_id;
+            for (int i = (Ins_retire_pointer+1); i < Ins_commit_pointer; i++) begin
+              Ins_array[i].flushed = 1;
+            end
           end
         end else if($urandom_range(0,99)<WRITEBACK_RATE) begin
           // Send writebacks according to writeback rate

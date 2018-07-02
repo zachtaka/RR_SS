@@ -28,6 +28,8 @@ interface RR_if();
   logic [    INSTR_COUNT-1:0][    $clog2(C_NUM*K)-1:0] alloc_rht_id;
   logic [    INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] alloc_p_reg;
 
+  logic [    INSTR_COUNT-1:0] commit_o_dbg;
+
 
 // For a reason there are two valid signals (both should do the same job)
 assert property(@(negedge clk) disable iff(!rst_n) l_dst_valid |-> inst_en) 

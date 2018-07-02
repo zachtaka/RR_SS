@@ -72,6 +72,37 @@ class checker_utils;
     // assert (free_list.size()<=(P_REGISTERS-L_REGISTERS)) else $fatal("Pushing on full free list");
   endfunction : release_reg
 
+  int Ins_retire_pointer;
+  function release_reg_2(input int retire_rob_id);
+    // for (int i = 0; i < INSTR_COUNT; i++) begin
+    //   while (rename_record[Ins_retire_pointer].flushed) begin 
+    //     Ins_retire_pointer++;
+    //   end
+    //   if(commit.valid_commit[i]) begin
+    //     rename_record[Ins_retire_pointer].retired = 1;
+    //     free_list.push_back(rename_record[Ins_retire_pointer].ppreg);
+    //     $display("",);
+    //     $display("@ %0tps released reg:%0d from rename_pointer[%0d]=%p",$time(),rename_record[Ins_retire_pointer].ppreg,Ins_retire_pointer,rename_record[Ins_retire_pointer]);
+    //     Ins_retire_pointer++;
+    //   end
+    // end
+
+    // Search at Rename record array for the last entry with that rob id
+    valid_idx = 0;
+    for (int j = 0; j < rename_ins_pointer; j++) begin
+      if(rename_record[j].rob_id==retire_rob_id) begin
+        last_valid_idx = j;
+        valid_idx = 1;
+      end 
+    end
+    if(valid_idx) begin
+      free_list.push_back(rename_record[last_valid_idx].ppreg);
+      $display("Writeback(rob_id=%0d) from rename_entry[%0d]:%p released reg:%0d",retire_rob_id,last_valid_idx,rename_record[last_valid_idx],rename_record[last_valid_idx].ppreg);
+    end else begin 
+      $fatal("Didnt found rename entry with that rob id:%0d?!",retire_rob_id);
+    end
+  endfunction : release_reg_2
+
   // Get number of free regs
   function int free_reg_counter();
     return free_list.size();
@@ -123,7 +154,9 @@ class checker_utils;
   
   
   function new_rename(input rename_record_entry_s new_rename_entry);
-    rename_record[rename_ins_pointer] = new_rename_entry;
+    rename_record[rename_ins_pointer].lreg = new_rename_entry.lreg;
+    rename_record[rename_ins_pointer].preg = new_rename_entry.preg;
+    rename_record[rename_ins_pointer].ppreg = new_rename_entry.ppreg;
     rename_record[rename_ins_pointer].rob_id = alloc_rob_id;
     rename_record[rename_ins_pointer].rht_id = alloc_rht_id;
     rename_record[rename_ins_pointer].valid_entry = 1;
@@ -136,12 +169,19 @@ class checker_utils;
     if(alloc_rht_id==(C_NUM*K))     alloc_rht_id = 0;
   endfunction : new_rename
 
+  function mark_flushed_Ins(input int flush_rob_id);
+    for (int i = (Ins_retire_pointer+1); i < rename_ins_pointer; i++) begin
+      rename_record[i].flushed = 1;
+    end
+  endfunction : mark_flushed_Ins
+
   // ------------------------   Rename record implementetion  --------------------------------
 
   // Constructor
   function new();
     rat_rename_pointer = 0;
     rename_ins_pointer = 0;
+    Ins_retire_pointer = 0;
     alloc_rob_id = 0;
     alloc_rht_id = 0;
 

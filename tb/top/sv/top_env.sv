@@ -92,6 +92,7 @@ function void top_env::connect_phase(uvm_phase phase);
   // Checker port connections
   m_RR_agent.m_driver.trans_port.connect(Checker_h.analysis_export);
   m_RR_agent.m_monitor.wb_port.connect(Checker_h.wb);
+  m_RR_agent.m_monitor.commit_port.connect(Checker_h.commit);
 
   // You can insert code here by setting top_env_append_to_connect_phase in file common.tpl
 

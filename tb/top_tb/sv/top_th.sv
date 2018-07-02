@@ -45,7 +45,8 @@ module top_th;
     //Alloc Out
     .alloc_rob_id(RR_if_0.alloc_rob_id),
     .alloc_rht_id(RR_if_0.alloc_rht_id),
-    .alloc_p_reg (RR_if_0.alloc_p_reg)
+    .alloc_p_reg (RR_if_0.alloc_p_reg),
+    .commit_o_dbg(RR_if_0.commit_o_dbg)
   );
 
 endmodule

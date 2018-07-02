@@ -1,12 +1,14 @@
 `ifndef Checker_sv
 `define Checker_sv
 `uvm_analysis_imp_decl(_wb) 
+`uvm_analysis_imp_decl(_commit) 
 
 import util_pkg::*;
 class Checker extends uvm_subscriber #(trans);
   `uvm_component_utils(Checker)
 
   uvm_analysis_imp_wb #(writeback_s, Checker) wb; 
+  uvm_analysis_imp_commit #(commit_s, Checker) commit; 
 
   virtual RR_if    vif;
 
@@ -24,9 +26,27 @@ class Checker extends uvm_subscriber #(trans);
   endfunction : write
 
   // Push freed reg from writeback
+  int wb_id_q[$];
   function void write_wb(input writeback_s t);
-    utils.release_reg(t);
+    for (int i = 0; i < INSTR_COUNT; i++) begin
+      if(t.wb_en[i]) begin
+        wb_id_q.push_back(t.rob_id[i]);
+      end
+    end
   endfunction : write_wb
+
+  // Push freed reg from commit
+  int retire_rob_id;
+  function void write_commit(input commit_s t);
+    for (int i = 0; i < INSTR_COUNT; i++) begin
+      if(t.valid_commit[i]) begin
+        assert(wb_id_q.size()>0) else $fatal("No available rob id to commit");
+        retire_rob_id = wb_id_q.pop_front();
+        utils.release_reg_2(retire_rob_id);
+      end
+    end
+    // utils.release_reg_2(t);
+  endfunction : write_commit
 
 /*-----------------------------------------------------------------------------
 -- Tasks
@@ -79,6 +99,7 @@ class Checker extends uvm_subscriber #(trans);
         // First, recover RAT
         if(flush_array[trans_pointer].flushed) begin
           // $display("Flushed trans: %0d",trans_pointer);
+          utils.mark_flushed_Ins(flush_array[trans_pointer].flush_to_rob_id);
           utils.recover_RAT(flush_array[trans_pointer].flush_to_rob_id);
         end
         // Second, reverse all renames after flush to recover FreeList
@@ -195,6 +216,7 @@ class Checker extends uvm_subscriber #(trans);
 
     utils = new();
     wb = new("wb",this);
+    commit = new("commit",this);
   endfunction : new
 
 
