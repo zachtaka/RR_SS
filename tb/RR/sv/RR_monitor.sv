@@ -44,6 +44,8 @@ class RR_monitor extends uvm_monitor;
       m_trans.alloc_rob_id = vif.alloc_rob_id; 
       m_trans.alloc_rht_id = vif.alloc_rht_id; 
       m_trans.alloc_p_reg  = vif.alloc_p_reg; 
+
+      
       if((vif.rst_n)&&(vif.l_dst_valid && (!vif.stall || vif.rec_en))) begin 
         analysis_port.write(m_trans);
       end

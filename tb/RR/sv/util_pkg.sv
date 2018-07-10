@@ -9,7 +9,7 @@ parameter INSTR_COUNT = 2;
 
 
 // TB parameters
-parameter int TRANS_NUM = 1000; // Transaction (or Instruction packets) that will be sent to the DUT
+parameter int TRANS_NUM = 20000; // Transaction (or Instruction packets) that will be sent to the DUT
 parameter int DEPENDENCE_RATE = 0; // rate=100 -> dest[0]==dest[1]==...==dest[INSTR_COUNT-1]
 parameter int WRITEBACK_RATE = 100;
 parameter int MIN_WB_PER_CYCLE = 0; // min writebacks per cycle: [1  ...INSTR_COUNT] this rate will be ceiled according to the available Ins for writeback

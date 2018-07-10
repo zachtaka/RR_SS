@@ -2,7 +2,7 @@
 //  P_ADDR_WIDTH: # of Data Bits
 //  L_ADDR_WIDTH: # of Address Bits
 //  L_REGS:       # of Entries in the Register File
-//  C_NUM:	      # of Checkpoints
+//  C_NUM:        # of Checkpoints
 //-------------------------------------------------------------------------------------
 module RAT #(
     P_ADDR_WIDTH = 7,

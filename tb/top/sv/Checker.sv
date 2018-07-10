@@ -94,6 +94,11 @@ class Checker extends uvm_subscriber #(trans);
             utils.checkpoint_RAT();
           end
           $display("@ %0tps dest_o_0=%0d dest_o_1=%0d",$time(),dest_o_GR[0],dest_o_GR[1]);
+          for (int i = 0; i < INSTR_COUNT; i++) begin
+            if(GR_array[trans_pointer].dest[i] != DUT_array[trans_pointer].dest[i]) begin
+              `uvm_fatal(get_type_name(),$sformatf("[ERROR] @ %0tps Expected GR_array[%0d].dest[%0d] = %p,\t but found %p",DUT_array[trans_pointer].sim_time,trans_pointer,i,GR_array[trans_pointer].dest[i], DUT_array[trans_pointer].dest[i] ))
+            end
+          end
         end
 
         // First, recover RAT

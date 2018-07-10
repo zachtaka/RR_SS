@@ -69,7 +69,7 @@ class checker_utils;
       end
     end
     // ToDo enable assertion when bug is fixed
-    // assert (free_list.size()<=(P_REGISTERS-L_REGISTERS)) else $fatal("Pushing on full free list");
+    assert (free_list.size()<=(P_REGISTERS-L_REGISTERS)) else $fatal("Pushing on full free list");
   endfunction : release_reg
 
   int Ins_retire_pointer;

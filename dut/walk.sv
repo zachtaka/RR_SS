@@ -27,7 +27,10 @@ module walk
 
  output logic  [C_ADDR-1:0]       new_checkpoint
  );
-
+logic [RHT_ID_WIDTH-1:0] walk_point_plus;
+assign walk_point_plus = walk_point + 1;
+logic [RHT_ID_WIDTH-1:0] rht_id_out_minus;
+assign rht_id_out_minus = rht_id_out -1;
 //-------------------------------------------------
 //Recovering states
 typedef enum logic[1:0] {IDLE, RESTORE, RECLAIM} walk;
@@ -40,7 +43,7 @@ assign in_reclaim      = (walk_state == RECLAIM);
 
 assign new_checkpoint  = rec_rht_id[RHT_ID_WIDTH-1 : $clog2(K)];     //new checkpoint for RAT
 assign new_pointer     = (target_rht_ticket+1);                      //new pointer for RHT after walk is finished
-assign rht_set_ptr     = (walk_point == rht_id_out -1) & rec_state;  //RAT driver signal
+assign rht_set_ptr     = (walk_point == rht_id_out_minus) & rec_state;  //RAT driver signal
 
 // Walk
 always_ff @(posedge clk, negedge rst_n) begin
@@ -64,7 +67,7 @@ always_ff @(posedge clk, negedge rst_n) begin
                     
             RECLAIM:begin
                         walk_point <= walk_point + 1;
-                        if((walk_point+1) == rht_id_out) 
+                        if(walk_point_plus == rht_id_out) 
                             walk_state <= IDLE;
                         else
                             walk_state <= RECLAIM;

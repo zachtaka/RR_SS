@@ -106,8 +106,11 @@ end
 
 always_ff @(posedge clk or negedge rst_n) begin : TailManagement
     if(!rst_n)      tail <= 0;
-    else if(rec_en) tail <= rec_id;
-    else if(push) begin
+    else if(rec_en) begin
+        // tail <= rec_id;
+        if (rec_id > ROB_DEPTH-1) tail <= rec_id - ROB_DEPTH;
+        else tail <= rec_id;
+    end else if(push) begin
         //- In case of ROB_DEPTH == 2**n, the limit check may be omitted.
         if (tail + INSTR_COUNT > ROB_DEPTH-1) tail <= tail + INSTR_COUNT - ROB_DEPTH;
         else tail <= tail + INSTR_COUNT;
@@ -164,6 +167,4 @@ generate
 endgenerate
 
 endmodule
-
-
 

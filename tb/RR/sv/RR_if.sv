@@ -39,6 +39,10 @@ else $fatal("The signals l_dst_valid, inst_en must be equal");
 assert property(@(negedge clk) disable iff(!rst_n) wb_en |-> (!rec_en && !rec_busy)) 
 else $fatal("Writeback and recover at the same cycle");
 
+// Check that no recovery is issued while DUT is already in recovery state
+assert property(@(negedge clk) disable iff(!rst_n) rec_en |-> (!rec_busy)) 
+else $fatal("Issuing recovery when DUT is in recovery state");
+
 generate 
   for (genvar i = 0; i < INSTR_COUNT; i++) begin
     // Each allocated rob id should be in range [0,(C_NUM-1)*K)-1]

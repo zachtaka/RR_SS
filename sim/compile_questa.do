@@ -1,3 +1,4 @@
+quit -sim
 
 file delete -force work
 
