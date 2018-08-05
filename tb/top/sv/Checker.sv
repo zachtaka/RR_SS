@@ -7,25 +7,25 @@ import util_pkg::*;
 class Checker extends uvm_subscriber #(trans);
   `uvm_component_utils(Checker)
 
+  virtual RR_if vif;
   uvm_analysis_imp_wb #(writeback_s, Checker) wb; 
   uvm_analysis_imp_commit #(commit_s, Checker) commit; 
-
-  virtual RR_if    vif;
-
+  trans m_trans, trans_q[$];
   checker_utils utils;
 
-  trans m_trans, trans_q[$];
+
+
 
 /*-----------------------------------------------------------------------------
 -- Functions
 -----------------------------------------------------------------------------*/
   
-
+  // Push trans item from driver to queue
   function void write(input trans t);
     trans_q.push_back(t);
   endfunction : write
 
-  // Push freed reg from writeback
+  // Keep rob id's from writeback requests in a queue
   int wb_id_q[$];
   function void write_wb(input writeback_s t);
     for (int i = 0; i < INSTR_COUNT; i++) begin
@@ -35,38 +35,38 @@ class Checker extends uvm_subscriber #(trans);
     end
   endfunction : write_wb
 
-  // Push freed reg from commit
-  int retire_rob_id;
+  // Release preg from commit 
+  // to release a register the checker looks at Rename record array 
+  // for the last rename entry with matching rob id and releases the preg
   function void write_commit(input commit_s t);
     for (int i = 0; i < INSTR_COUNT; i++) begin
       if(t.valid_commit[i]) begin
         assert(wb_id_q.size()>0) else $fatal("No available rob id to commit");
-        retire_rob_id = wb_id_q.pop_front();
-        utils.release_reg_2(retire_rob_id);
+        utils.release_reg(wb_id_q.pop_front());
       end
     end
-    // utils.release_reg_2(t);
   endfunction : write_commit
 
 /*-----------------------------------------------------------------------------
 -- Tasks
 -----------------------------------------------------------------------------*/
-  ///
+
   int trans_pointer;
   bit [INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] dest_o_GR;
-  result_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] GR_array;
+  result_array_entry_s [(SIM_RUNS*TRANS_NUM*INSTR_COUNT)-1:0] GR_array;
   rename_record_entry_s rename_entry;
-  flush_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] flush_array;
+  flush_array_entry_s [(SIM_RUNS*TRANS_NUM*INSTR_COUNT)-1:0] flush_array;
   task RR_Golden_Ref();
     forever begin 
       if(trans_q.size()>0) begin
         m_trans = trans_q.pop_front();
         
-        /*--------------------------------------------------------------------- 
-              Instruction rename golden ref
-        ----------------------------------------------------------------------*/
+        // Wait DUT to check if trans was renamed
         wait(flush_array[trans_pointer].valid_entry);
+
+        // If trans was renamed then calculate renames 
         if(flush_array[trans_pointer].renamed) begin
+
           // Instruction dest rename calculation
           for (int ins_i = 0; ins_i < INSTR_COUNT; ins_i++) begin
             while(utils.free_reg_counter()==0) begin 
@@ -74,7 +74,7 @@ class Checker extends uvm_subscriber #(trans);
             end
             dest_o_GR[ins_i] = utils.get_free_reg();
           end
-          
+
           for (int i = 0; i < INSTR_COUNT; i++) begin
             // Save results to Golden Reference array
             GR_array[trans_pointer].dest[i] = dest_o_GR[i];
@@ -82,35 +82,29 @@ class Checker extends uvm_subscriber #(trans);
             GR_array[trans_pointer].rht_id[i]  = utils.alloc_rht_id; // ToDo Fix it
             GR_array[trans_pointer].valid_entry = 1;
 
-            // Update checker components
-            // Keep track of renames and rob, rht id
+            // Save results to Rename Record array
             rename_entry.lreg = m_trans.dest[i];
             rename_entry.preg = dest_o_GR[i];
             rename_entry.ppreg = utils.get_id_from_RAT(m_trans.dest[i]);
             utils.new_rename(rename_entry);
+
             // Update RAT table with new dest renames
             utils.update_RAT(.id(m_trans.dest[i]), .new_id(dest_o_GR[i]));
+
             // For each rename checkpoint RAT
             utils.checkpoint_RAT();
           end
-          $display("@ %0tps dest_o_0=%0d dest_o_1=%0d",$time(),dest_o_GR[0],dest_o_GR[1]);
+
           for (int i = 0; i < INSTR_COUNT; i++) begin
-            if(GR_array[trans_pointer].dest[i] != DUT_array[trans_pointer].dest[i]) begin
+            if(GR_array[trans_pointer].dest[i] != DUT_array[trans_pointer].dest[i]) 
               `uvm_fatal(get_type_name(),$sformatf("[ERROR] @ %0tps Expected GR_array[%0d].dest[%0d] = %p,\t but found %p",DUT_array[trans_pointer].sim_time,trans_pointer,i,GR_array[trans_pointer].dest[i], DUT_array[trans_pointer].dest[i] ))
-            end
           end
         end
 
-        // First, recover RAT
+        // If flush then recover checker components to flush id
         if(flush_array[trans_pointer].flushed) begin
-          // $display("Flushed trans: %0d",trans_pointer);
-          utils.mark_flushed_Ins(flush_array[trans_pointer].flush_to_rob_id);
-          utils.recover_RAT(flush_array[trans_pointer].flush_to_rob_id);
+          utils.recover_Checker(flush_array[trans_pointer].flush_to_rob_id);
         end
-        // Second, reverse all renames after flush to recover FreeList
-
-
-
 
         trans_pointer++;
       end // if (queue.size>0)
@@ -123,7 +117,7 @@ class Checker extends uvm_subscriber #(trans);
 
 
   int trans_pointer_2;
-  result_array_entry_s [(TRANS_NUM*INSTR_COUNT)-1:0] DUT_array;
+  result_array_entry_s [(SIM_RUNS*TRANS_NUM*INSTR_COUNT)-1:0] DUT_array;
   task monitor_DUT_out();
     forever begin 
       if(vif.l_dst_valid && (!vif.stall || vif.rec_en)) begin
@@ -139,7 +133,6 @@ class Checker extends uvm_subscriber #(trans);
         flush_array[trans_pointer_2].renamed = ~vif.stall;
         flush_array[trans_pointer_2].flush_to_rob_id = vif.rec_rob_id[0];
         flush_array[trans_pointer_2].valid_entry = 1;
-        // $display("flush_array[%0d]=%p",trans_pointer_2,flush_array[trans_pointer_2]);
         trans_pointer_2++;
       end
       @(negedge vif.clk);
@@ -157,13 +150,13 @@ class Checker extends uvm_subscriber #(trans);
     join_none
   endtask : run_phase
 
-  int checked_trans = 0;
-  int wrong_dests = 0;
-  int correct_dests = 0;
+  int checked_trans  = 0;
+  int wrong_dests    = 0;
+  int correct_dests  = 0;
   int correct_rob_id = 0;
   int correct_rht_id = 0;
-  int wrong_rob_id = 0;
-  int wrong_rht_id = 0;
+  int wrong_rob_id   = 0;
+  int wrong_rht_id   = 0;
   function void report_phase(uvm_phase phase);
     // Compare results
     for (int trans_i = 0; trans_i < trans_pointer; trans_i++) begin
@@ -216,9 +209,7 @@ class Checker extends uvm_subscriber #(trans);
   // Constructor
   function new(string name, uvm_component parent);
     super.new(name,parent);
-
     trans_pointer = 0;
-
     utils = new();
     wb = new("wb",this);
     commit = new("commit",this);

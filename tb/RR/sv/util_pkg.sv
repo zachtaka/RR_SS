@@ -5,17 +5,21 @@ parameter P_REGISTERS = 64;
 parameter L_REGISTERS = 32; 
 parameter C_NUM       = 4;  
 parameter K           = 32;  
-parameter INSTR_COUNT = 2;
+parameter INSTR_COUNT = 8;
 
 
 // TB parameters
-parameter int TRANS_NUM = 20000; // Transaction (or Instruction packets) that will be sent to the DUT
-parameter int DEPENDENCE_RATE = 0; // rate=100 -> dest[0]==dest[1]==...==dest[INSTR_COUNT-1]
+parameter int SIM_RUNS = 50;
+parameter int TRANS_NUM = 500; // Transaction (or Instruction packets) that will be sent to the DUT for each sim run
+parameter int DEPENDENCE_RATE = 25; // rate=100 -> dest[0]==dest[1]==...==dest[INSTR_COUNT-1]
+parameter bit RANDOM_PARAMETERS_ACTIVE = 1; // If set to 1, ignore the paramaters below because they will be randomized
 parameter int WRITEBACK_RATE = 100;
 parameter int MIN_WB_PER_CYCLE = 0; // min writebacks per cycle: [1  ...INSTR_COUNT] this rate will be ceiled according to the available Ins for writeback
 parameter int MAX_WB_PER_CYCLE = 1; // max writebacks per cycle: [MIN...INSTR_COUNT] this rate will be ceiled according to the available Ins for writeback
 parameter int FLUSH_RATE = 1;
 
+
+// Structs
 typedef struct {
   bit [INSTR_COUNT-1:0] wb_en;
   bit [INSTR_COUNT-1:0][$clog2((C_NUM-1)*K)-1:0] rob_id;
@@ -24,13 +28,6 @@ typedef struct {
 typedef struct {
   bit [INSTR_COUNT-1:0] valid_commit;
 } commit_s;
-
-typedef struct packed {
-  bit [$clog2((C_NUM-1)*K)-1:0] rob_id;
-  bit [$clog2(C_NUM*K)-1:0] rht_id;
-  bit flushed;
-  bit valid_entry;
-} rob_rht_id_entry_s;
 
 typedef struct packed { 
   bit [$clog2(L_REGISTERS)-1:0] lreg;
@@ -51,14 +48,12 @@ typedef struct packed {
   longint sim_time;
 } result_array_entry_s;
 
-
 typedef struct packed {
   bit [$clog2((C_NUM-1)*K)-1:0] flush_to_rob_id;
   bit flushed;
   bit renamed;
   bit valid_entry;
 } flush_array_entry_s;
-
 
 typedef struct packed {
   //L_Reg In Port
@@ -79,5 +74,13 @@ typedef struct packed {
   logic [    INSTR_COUNT-1:0][    $clog2(C_NUM*K)-1:0] alloc_rht_id;
   logic [    INSTR_COUNT-1:0][$clog2(P_REGISTERS)-1:0] alloc_p_reg;
 } monitor_trans;
+
+// typedef struct packed {
+//   int FLUSH_RATE;
+//   int WRITEBACK_RATE;
+//   int MIN_WB_PER_CYCLE;
+//   int MAX_WB_PER_CYCLE;
+// } sim_param_s;
+
 
 endpackage

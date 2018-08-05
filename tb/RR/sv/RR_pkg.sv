@@ -19,6 +19,7 @@ package RR_pkg;
 
   import uvm_pkg::*;
 
+  `include "parameters.sv"
   `include "RR_trans.sv"
   `include "RR_config.sv"
   `include "RR_driver_wb_fl.sv"

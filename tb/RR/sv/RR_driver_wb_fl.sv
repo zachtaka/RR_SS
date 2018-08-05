@@ -6,8 +6,13 @@ class RR_driver_wb_fl extends uvm_component;
   `uvm_component_utils(RR_driver_wb_fl)
 
   virtual RR_if vif;
-  int credits;
-  int rob_counter, rht_counter, wb_count;
+  // Parameters
+  int FLUSH_RATE_ = FLUSH_RATE;
+  int WRITEBACK_RATE_ = WRITEBACK_RATE;
+  int MIN_WB_PER_CYCLE_ = MIN_WB_PER_CYCLE;
+  int MAX_WB_PER_CYCLE_ = MAX_WB_PER_CYCLE; 
+  //
+  int credits, rob_counter, rht_counter, wb_count;
   bit disable_recover;
 
   function new(string name, uvm_component parent);
@@ -32,15 +37,15 @@ class RR_driver_wb_fl extends uvm_component;
 
       if((credits>0)&&(!vif.rec_busy && !vif.rec_en)) begin
         
-        if(($urandom_range(0,99)<FLUSH_RATE)&&(!disable_recover)) begin
+        if(($urandom_range(0,99)<FLUSH_RATE_)&&(!disable_recover)) begin
           vif.rec_rob_id[0] <= rob_counter;
           vif.rec_rht_id <= rht_counter;
           vif.rec_en <= 1;
           vif.wb_en  <= 0;
           disable_recover = 1;
-        end else if($urandom_range(0,99)<WRITEBACK_RATE) begin
+        end else if($urandom_range(0,99)<WRITEBACK_RATE_) begin
           // ceil writeback count to the max available credits for writeback
-          wb_count = $urandom_range(MIN_WB_PER_CYCLE,MAX_WB_PER_CYCLE);
+          wb_count = $urandom_range(MIN_WB_PER_CYCLE_,MAX_WB_PER_CYCLE_);
           if(wb_count > credits) wb_count = credits;
 
           for (int i=0; i<INSTR_COUNT; i++) begin
@@ -49,6 +54,8 @@ class RR_driver_wb_fl extends uvm_component;
               vif.rec_rob_id[i] <= rob_counter;
               rob_counter++;
               rht_counter++; 
+              if(rob_counter==((C_NUM-1)*K)) rob_counter = 0;
+              if(rht_counter==(C_NUM*K))     rht_counter = 0;
               disable_recover = 0;
             end else begin 
               vif.wb_en[i] = 0;
@@ -72,8 +79,6 @@ class RR_driver_wb_fl extends uvm_component;
         credits = credits + INSTR_COUNT;
       end
 
-      if(rob_counter==((C_NUM-1)*K)) rob_counter = 0;
-      if(rht_counter==(C_NUM*K))     rht_counter = 0;
       @(posedge vif.clk);
     end
   endtask : run_phase

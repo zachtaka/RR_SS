@@ -108,8 +108,26 @@ generate
     for (i = 0; i < INSTR_COUNT; i++) begin
 
         //Push/Pop Pointers Adjustment for next cell positions
-        assign pop_pnt_adj[i] = pop_pnt << i;
-        assign push_pnt_adj[i] = push_pnt << i;
+        // assign pop_pnt_adj[i] = pop_pnt << i;
+        // assign push_pnt_adj[i] = push_pnt << i;
+
+		barrel_shifter #(
+			.DW       (RAM_DEPTH),
+			.MAX_SHIFT(i        )
+		) adj_push_pnt (
+			.data_i  (push_pnt       ),
+			.sft_wb_i(i              ), //Shift magnitude in weighted binary
+			.data_o  (push_pnt_adj[i])
+		);
+
+		barrel_shifter #(
+			.DW       (RAM_DEPTH),
+			.MAX_SHIFT(i        )
+		) adj_pop_pnt (
+			.data_i  (pop_pnt       ),
+			.sft_wb_i(i             ), //Shift magnitude in weighted binary
+			.data_o  (pop_pnt_adj[i])
+		);
     
         and_or_multiplexer #(
             .INPUTS    (RAM_DEPTH ),

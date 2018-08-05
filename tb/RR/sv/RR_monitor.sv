@@ -25,13 +25,16 @@ class RR_monitor extends uvm_monitor;
   task run_phase(uvm_phase phase);
     forever begin 
 
+      // Writeback monitor
       wb_trans.wb_en  = vif.wb_en;
       wb_trans.rob_id = vif.rec_rob_id;
       wb_port.write(wb_trans);
 
+      // Commit monitor
       commit_trans.valid_commit = vif.commit_o_dbg;
       commit_port.write(commit_trans);
 
+      // Transaction monitor
       m_trans.l_dst        = vif.l_dst;        
       m_trans.l_dst_valid  = vif.l_dst_valid;  
       m_trans.inst_en      = vif.inst_en;      
@@ -44,11 +47,7 @@ class RR_monitor extends uvm_monitor;
       m_trans.alloc_rob_id = vif.alloc_rob_id; 
       m_trans.alloc_rht_id = vif.alloc_rht_id; 
       m_trans.alloc_p_reg  = vif.alloc_p_reg; 
-
-      
-      if((vif.rst_n)&&(vif.l_dst_valid && (!vif.stall || vif.rec_en))) begin 
-        analysis_port.write(m_trans);
-      end
+      if((vif.rst_n)&&(vif.l_dst_valid && (!vif.stall || vif.rec_en))) analysis_port.write(m_trans);
 
       @(negedge vif.clk);
     end

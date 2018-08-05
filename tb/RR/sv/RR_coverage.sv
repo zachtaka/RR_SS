@@ -36,12 +36,12 @@ endgroup : cg_common
 
 
 
+
 class RR_coverage extends uvm_subscriber #(monitor_trans);
   `uvm_component_utils(RR_coverage)
 
   monitor_trans     m_item;
   int common_ldests;
-  
 
   cg_port cg_port[INSTR_COUNT-1:0];
   cg_common cg_common;
@@ -52,13 +52,14 @@ class RR_coverage extends uvm_subscriber #(monitor_trans);
     cg_common = new(common_ldests,m_item);
   endfunction : new
 
-
   function void write(input monitor_trans t);
     m_item = t;
+    // Sample each port
     for (int i = 0; i < INSTR_COUNT; i++) begin
       cg_port[i].sample();
     end
 
+    // Sample common ldests to check dependencies between them
     common_ldests = 0;
     for (int i = 0; i < (INSTR_COUNT-1) ; i++) begin
       if (m_item.l_dst[i] == m_item.l_dst[INSTR_COUNT-1]) begin 

@@ -36,6 +36,11 @@ class top_default_seq extends uvm_sequence #(uvm_sequence_item);
   extern function void set_starting_phase(uvm_phase phase);
 `endif
 
+  function void connect_phase(uvm_phase phase);
+    
+
+  endfunction : connect_phase
+
 endclass : top_default_seq
 
 
@@ -55,6 +60,7 @@ task top_default_seq::body();
       begin
         RR_default_seq seq;
         seq = RR_default_seq::type_id::create("seq");
+        seq.m_RR_agent = m_RR_agent;
         seq.set_item_context(this, m_RR_agent.m_sequencer);
         if ( !seq.randomize() )
           `uvm_error(get_type_name(), "Failed to randomize sequence")
